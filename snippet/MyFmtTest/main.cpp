@@ -18,12 +18,16 @@ namespace fmt
     }
 
 #if defined(FMT_USE_STRING_VIEW)
-template <typename Char> using std_string_view = std::basic_string_view<Char>;
+    template <typename Char>
+    using std_string_view = std::basic_string_view<Char>;
 #elif defined(FMT_USE_EXPERIMENTAL_STRING_VIEW)
-template <typename Char>
-using std_string_view = std::experimental::basic_string_view<Char>;
+    template <typename Char>
+    using std_string_view = std::experimental::basic_string_view<Char>;
 #else
-template <typename T> struct std_string_view {};
+    template <typename T>
+    struct std_string_view
+    {
+    };
 #endif
 
     template <typename T>
@@ -54,7 +58,7 @@ template <typename T> struct std_string_view {};
 
 #define FMT_ENABLE_IF(...) enable_if_t<(__VA_ARGS__), int> = 0
 
-//basic string view
+    // basic string view
     template <typename Char>
     class basicStringView
     {
@@ -156,8 +160,6 @@ template <typename T> struct std_string_view {};
             return lhs.compare(rhs) >= 0;
         }
     };
-
-
 
     struct monostate
     {
