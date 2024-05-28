@@ -1,9 +1,107 @@
 #include <iostream>
 #include <vector>
+#include <cstring>
 #include <type_traits>
 
 namespace fmt
 {
+
+    template <bool B, typename T = void>
+    using enable_if_t = typename std::enable_if<B, T>::type;
+    template <bool B, typename T, typename F>
+    using conditional_t = typename std::conditional<B, T, F>::type;
+    template <bool B>
+    using bool_constant = std::integral_constant<bool, B>;
+
+    class basicFormatArg;
+    struct customValue
+    {
+        void *value = nullptr;
+        void (*format)(void *arg);
+    };
+    enum class type
+    {
+        none_type,
+        // Integer types should go first,
+        int_type,
+        uint_type,
+        long_long_type,
+        ulong_long_type,
+        int128_type,
+        uint128_type,
+        bool_type,
+        charType,
+        last_integer_type = charType,
+        // followed by floating-point types.
+        float_type,
+        double_type,
+        long_double_type,
+        last_numeric_type = long_double_type,
+        cstring_type,
+        string_type,
+        pointer_type,
+        custom_type
+    };
+
+    enum
+    {
+        long_short = sizeof(long) == sizeof(int)
+    };
+    using long_type = conditional_t<long_short, int, long long>;
+    using ulong_type = conditional_t<long_short, unsigned, unsigned long long>;
+
+    struct argMapper
+    {
+        constexpr inline auto map(signed char val) -> int { return val; }
+        constexpr inline auto map(unsigned char val) -> unsigned
+        {
+            return val;
+        }
+        constexpr inline auto map(short val) -> int { return val; }
+        constexpr inline auto map(unsigned short val) -> unsigned
+        {
+            return val;
+        }
+        constexpr inline auto map(int val) -> int { return val; }
+        constexpr inline auto map(unsigned val) -> unsigned { return val; }
+        constexpr inline auto map(long val) -> long_type { return val; }
+        constexpr inline auto map(unsigned long val) -> ulong_type
+        {
+            return val;
+        }
+        constexpr inline auto map(long long val) -> long long { return val; }
+        constexpr inline auto map(unsigned long long val)
+            -> unsigned long long
+        {
+            return val;
+        }
+        constexpr inline auto map(float val) -> float { return val; }
+        constexpr inline auto map(double val) -> double { return val; }
+        constexpr inline auto map(long double val) -> long double
+        {
+            return val;
+        }
+
+        constexpr inline auto map(char *val) -> const char *
+        {
+            return val;
+        }
+        constexpr inline auto map(const char *val) -> const char *
+        {
+            return val;
+        }
+        constexpr inline auto map(bool val) -> bool { return val; }
+        constexpr inline auto map(void *val) -> const void * { return val; }
+        constexpr inline auto map(const void *val) -> const void *
+        {
+            return val;
+        }
+        constexpr inline auto map(std::nullptr_t val) -> const void *
+        {
+            return val;
+        }
+    };
+
     template <typename... T>
     constexpr void ignore_unused(const T &...) {}
 
@@ -43,12 +141,6 @@ namespace fmt
         return value;
     }
 
-    template <bool B, typename T = void>
-    using enable_if_t = typename std::enable_if<B, T>::type;
-    template <bool B, typename T, typename F>
-    using conditional_t = typename std::conditional<B, T, F>::type;
-    template <bool B>
-    using bool_constant = std::integral_constant<bool, B>;
     template <typename T>
     using remove_reference_t = typename std::remove_reference<T>::type;
     template <typename T>
@@ -68,7 +160,7 @@ namespace fmt
     };
     template <typename T>
     using mapped_type_constant =
-        type_constant<decltype(arg_mapper().map(std::declval<const T &>())), char>;
+        type_constant<decltype(argMapper().map(std::declval<const T &>())), char>;
 
 #define FMT_ENABLE_IF(...) enable_if_t<(__VA_ARGS__), int> = 0
 
@@ -121,7 +213,7 @@ namespace fmt
             return data_[pos];
         }
 
-        constexpr void remove_prefix(size_t n) noexcept
+        void remove_prefix(size_t n) noexcept
         {
             data_ += n;
             size_ -= n;
@@ -171,30 +263,6 @@ namespace fmt
         constexpr monostate() {}
     };
 
-    enum class type
-    {
-        none_type,
-        // Integer types should go first,
-        int_type,
-        uint_type,
-        long_long_type,
-        ulong_long_type,
-        int128_type,
-        uint128_type,
-        bool_type,
-        charType,
-        last_integer_type = charType,
-        // followed by floating-point types.
-        float_type,
-        double_type,
-        long_double_type,
-        last_numeric_type = long_double_type,
-        cstring_type,
-        string_type,
-        pointer_type,
-        custom_type
-    };
-
     class value
     {
     private:
@@ -231,17 +299,17 @@ namespace fmt
         inline value(long double val) : long_double_value(val) {}
         constexpr inline value(bool val) : bool_value(val) {}
         constexpr inline value(char val) : char_value(val) {}
-        constexpr inline value(const char *val)
-        {
-            string.data = val;
-            if (is_constant_evaluated())
-                string.size = {};
-        }
-        constexpr inline value(basicStringView<char> val)
-        {
-            string.data = val.data();
-            string.size = val.size();
-        }
+        // constexpr inline value(const char *val)
+        // {
+        //     string.data = val;
+        //     if (is_constant_evaluated())
+        //         string.size = {};
+        // }
+        // constexpr inline value(basicStringView<char> val)
+        // {
+        //     string.data = val.data();
+        //     string.size = val.size();
+        // }
         inline value(const void *val) : pointer(val) {}
     };
 
@@ -254,80 +322,23 @@ namespace fmt
         return t > type::none_type && t <= type::last_numeric_type;
     }
 
-    template <typename Context, typename T>
-    constexpr auto make_arg(const T &value) -> basicFormatArg
-    {
-        basicFormatArg arg;
-        arg.type_ = mapped_type_constant<T, Context>::value;
-        arg.value_ = arg_mapper<Context>().map(value);
-        return arg;
-    }
-
-    enum
-    {
-        long_short = sizeof(long) == sizeof(int)
-    };
-    using long_type = conditional_t<long_short, int, long long>;
-    using ulong_type = conditional_t<long_short, unsigned, unsigned long long>;
-
-    class argMapper
-    {
-        using charType = char;
-        constexpr inline auto map(signed char val) -> int { return val; }
-        constexpr inline auto map(unsigned char val) -> unsigned
-        {
-            return val;
-        }
-        constexpr inline auto map(short val) -> int { return val; }
-        constexpr inline auto map(unsigned short val) -> unsigned
-        {
-            return val;
-        }
-        constexpr inline auto map(int val) -> int { return val; }
-        constexpr inline auto map(unsigned val) -> unsigned { return val; }
-        constexpr inline auto map(long val) -> long_type { return val; }
-        constexpr inline auto map(unsigned long val) -> ulong_type
-        {
-            return val;
-        }
-        constexpr inline auto map(long long val) -> long long { return val; }
-        constexpr inline auto map(unsigned long long val)
-            -> unsigned long long
-        {
-            return val;
-        }
-        constexpr inline auto map(float val) -> float { return val; }
-        constexpr inline auto map(double val) -> double { return val; }
-        constexpr inline auto map(long double val) -> long double
-        {
-            return val;
-        }
-
-        constexpr inline auto map(charType *val) -> const charType *
-        {
-            return val;
-        }
-        constexpr inline auto map(const charType *val) -> const charType *
-        {
-            return val;
-        }
-        constexpr inline auto map(bool val) -> bool { return val; }
-    };
-
     class basicFormatArg
     {
-    private:
+        friend class basicFormatArgs;
+        template <typename T>
+        friend auto makeArg(const T &value) -> basicFormatArg;
+
+    public:
+        // private:
         using charType = char;
         ::fmt::type type_;
         ::fmt::value value_;
 
     public:
-        void visit();
         class handle
         {
         public:
             explicit handle(customValue custom) : custom_(custom) {}
-
             void format() const
             {
                 custom_.format(custom_.value);
@@ -345,22 +356,23 @@ namespace fmt
         auto is_arithmetic() const -> bool { return ::fmt::is_arithmetic_type(type_); }
     };
 
-    struct customValue
+    template <typename T>
+    auto makeArg(const T &value) -> basicFormatArg
     {
-        void *value = nullptr;
-        void (*format)(void *arg);
-    };
+        basicFormatArg arg;
+        arg.type_ = mapped_type_constant<T>::value;
+        arg.value_ = argMapper().map(value);
+        return arg;
+    }
 
     template <typename T, typename Char, size_t NUM_ARGS>
-    struct arg_data
+    struct argData
     {
-        // args_[0].named_args points to named_args_ to avoid bloating format_args.
-        // +1 to workaround a bug in gcc 7.5 that causes duplicated-branches warning.
         T args_[1 + (NUM_ARGS != 0 ? NUM_ARGS : +1)];
 
         template <typename... U>
-        arg_data(const U &...init) : args_{init...} {}
-        arg_data(const arg_data &other) = delete;
+        argData(const U &...init) : args_{init...} {}
+        argData(const argData &other) = delete;
         auto args() const -> const T * { return args_ + 1; }
     };
 
@@ -370,17 +382,60 @@ namespace fmt
     private:
         static const size_t num_args = sizeof...(Args);
         using valueType = basicFormatArg;
-        arg_data<valueType, char, num_args> data_;
-        friend class basic_format_args;
+        argData<valueType, char, num_args> data_;
+        friend class basicFormatArgs;
 
     public:
         template <typename... T>
         constexpr inline formatArgStore(T &&...args)
-            :
+            : data_{makeArg<remove_cvref_t<T>>(std::forward<T>(args))...}
         {
         }
     };
 
+    class basicFormatArgs
+    {
+    public:
+        using size_type = int;
+        using format_arg = basicFormatArg;
+
+        constexpr basicFormatArgs(const format_arg *args)
+            : args_(args) {}
+
+        template <typename... Args>
+        constexpr inline basicFormatArgs(
+            const formatArgStore<Args...> &store)
+            : basicFormatArgs(store.data_.args()) {}
+
+        auto get(int id) const -> format_arg
+        {
+            return args_[id];
+        }
+
+    private:
+        const format_arg *args_;
+    };
+
+    template <typename... Args>
+    auto makeFormatArgs(Args &&...args)
+        -> formatArgStore<remove_cvref_t<Args>...>
+    {
+        return {std::forward<Args>(args)...};
+    }
+
+    inline auto vformat(stringView fmt, basicFormatArgs args)
+        -> std::string
+    {
+        std::cout << args.get(0).value_.int_value << "\n";
+        return std::string("1234");
+    }
+
+    template <typename... T>
+    inline auto format(const char *fmt, T &&...args)
+        -> std::string
+    {
+        return vformat(stringView(fmt), fmt::makeFormatArgs(args...));
+    }
 }
 
 template <typename T>
@@ -407,43 +462,8 @@ void formatFunc(void *pArg)
     formatImpl<T>(static_cast<T *>(pArg));
 }
 
-template <typename T>
-struct arg_t
-{
-    using fmtFunc = void(void *);
-    arg_t(void *a) : pArg(a), format(formatFunc<T>) {}
-    /* data */
-    void *pArg = nullptr;
-    fmtFunc format;
-};
-
-template <typename T>
-std::vector<T> argStore(T arg)
-{
-    std::vector<arg_t> res;
-    res.append(arg_t((void *)arg));
-}
-
-template <typename T, typename... Args>
-std::vector<T> f(T t, Args... args)
-{
-    std::vector<T> res = f(args...);
-    res.prepend(t);
-    return res;
-}
-
 int main()
 {
-    auto vec = f(1, 2, 3);
-
-    std::cout << vec.size();
-
-    std::cout;
-
-    for (auto it = vec.begin(); it != vec.end(); ++it)
-    {
-        std::cout << *it;
-    }
-
+    fmt::format("123", 114, 514, 1919, 810);
     return 0;
 }
