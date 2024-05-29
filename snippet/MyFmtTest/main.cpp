@@ -299,17 +299,16 @@ namespace fmt
         inline value(long double val) : long_double_value(val) {}
         constexpr inline value(bool val) : bool_value(val) {}
         constexpr inline value(char val) : char_value(val) {}
-        // constexpr inline value(const char *val)
-        // {
-        //     string.data = val;
-        //     if (is_constant_evaluated())
-        //         string.size = {};
-        // }
-        // constexpr inline value(basicStringView<char> val)
-        // {
-        //     string.data = val.data();
-        //     string.size = val.size();
-        // }
+        inline value(const char *val)
+        {
+            string.data = val;
+            string.size = std::strlen(val);
+        }
+        inline value(basicStringView<char> val)
+        {
+            string.data = val.data();
+            string.size = val.size();
+        }
         inline value(const void *val) : pointer(val) {}
     };
 
@@ -369,11 +368,11 @@ namespace fmt
     struct argData
     {
         T args_[1 + (NUM_ARGS != 0 ? NUM_ARGS : +1)];
-
+        const int num_args = NUM_ARGS;
         template <typename... U>
         argData(const U &...init) : args_{init...} {}
         argData(const argData &other) = delete;
-        auto args() const -> const T * { return args_ + 1; }
+        auto args() const -> const T * { return args_; }
     };
 
     template <typename... Args>
@@ -399,21 +398,27 @@ namespace fmt
         using size_type = int;
         using format_arg = basicFormatArg;
 
-        constexpr basicFormatArgs(const format_arg *args)
-            : args_(args) {}
+        constexpr basicFormatArgs(const format_arg *args,const int& num_args)
+            : args_(args) ,numArgs(num_args){}
 
         template <typename... Args>
         constexpr inline basicFormatArgs(
             const formatArgStore<Args...> &store)
-            : basicFormatArgs(store.data_.args()) {}
+            : basicFormatArgs(store.data_.args(),store.data_.num_args) {}
 
         auto get(int id) const -> format_arg
         {
             return args_[id];
         }
 
+        auto size() const -> int
+        {
+            return numArgs;
+        }
+
     private:
         const format_arg *args_;
+        const int numArgs;
     };
 
     template <typename... Args>
@@ -426,8 +431,11 @@ namespace fmt
     inline auto vformat(stringView fmt, basicFormatArgs args)
         -> std::string
     {
-        std::cout << args.get(0).value_.int_value << "\n";
-        return std::string("1234");
+        std::cout << args.get(0).value_.int_value << "\n"
+        << args.get(1).value_.int_value << "\n"
+        << args.get(2).value_.string.data << "\n"
+        << args.size() << "\n";
+        return std::string();
     }
 
     template <typename... T>
@@ -438,32 +446,8 @@ namespace fmt
     }
 }
 
-template <typename T>
-void formatImpl(T *pArg)
-{
-    ;
-}
-
-template <>
-void formatImpl(int *pArg)
-{
-    std::cout << "[------------Int received-------------]" << *pArg;
-}
-
-template <>
-void formatImpl(float *pArg)
-{
-    std::cout << "[------------Float received-------------]" << *pArg;
-}
-
-template <typename T>
-void formatFunc(void *pArg)
-{
-    formatImpl<T>(static_cast<T *>(pArg));
-}
-
 int main()
 {
-    fmt::format("123", 114, 514, 1919, 810);
+    fmt::format("123", 114, 514, "Be One With Yuri!");
     return 0;
 }
