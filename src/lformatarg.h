@@ -88,8 +88,7 @@ TOSTRING_DECL(std::string)
     return val;
 }
 
-TOSTRING_DECL(const char*)
+TOSTRING_DECL(const char *)
 {
     return std::string(val);
 }
-

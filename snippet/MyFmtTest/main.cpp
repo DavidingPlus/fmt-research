@@ -398,13 +398,13 @@ namespace fmt
         using size_type = int;
         using format_arg = basicFormatArg;
 
-        constexpr basicFormatArgs(const format_arg *args,const int& num_args)
-            : args_(args) ,numArgs(num_args){}
+        constexpr basicFormatArgs(const format_arg *args, const int &num_args)
+            : args_(args), numArgs(num_args) {}
 
         template <typename... Args>
         constexpr inline basicFormatArgs(
             const formatArgStore<Args...> &store)
-            : basicFormatArgs(store.data_.args(),store.data_.num_args) {}
+            : basicFormatArgs(store.data_.args(), store.data_.num_args) {}
 
         auto get(int id) const -> format_arg
         {
@@ -432,9 +432,9 @@ namespace fmt
         -> std::string
     {
         std::cout << args.get(0).value_.int_value << "\n"
-        << args.get(1).value_.int_value << "\n"
-        << args.get(2).value_.string.data << "\n"
-        << args.size() << "\n";
+                  << args.get(1).value_.int_value << "\n"
+                  << args.get(2).value_.string.data << "\n"
+                  << args.size() << "\n";
         return std::string();
     }
 
